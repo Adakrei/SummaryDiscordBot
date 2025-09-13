@@ -21,7 +21,7 @@
   "dependencies": {
     "@carry0987/utils": "^3.8.5",
     "@nestjs/common": "^11.0.11",
-    "@nestjs/config": "^4.0.1",
+    "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.0.11",
     "@nestjs/platform-express": "^11.0.11",
     "class-transformer": "^0.5.1",
