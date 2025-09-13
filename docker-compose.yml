@@ -1,0 +1,27 @@
+name: discord-bot
+services:
+  bot:
+    build: .
+    container_name: discord-bot
+    restart: unless-stopped
+    env_file:
+      - .env # Provide BOT_TOKEN, CLIENT_ID, optional PORT
+    ports:
+      - "3000:${PORT-3000}"
+    # If your environment blocks outbound connections, ensure egress is allowed to Discord gateway
+
+  # Optional Postgres service (kept for future use; not required for the bot)
+  postgres:
+    image: postgres:latest
+    container_name: drizzle-postgres
+    environment:
+      - POSTGRES_PASSWORD=mypassword
+      - POSTGRES_USER=myuser
+      - POSTGRES_DB=mydb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
