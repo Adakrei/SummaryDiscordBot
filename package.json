@@ -28,7 +28,7 @@
     "class-validator": "^0.14.1",
     "discord.js": "^14.18.0",
     "dotenv": "^16.4.7",
-    "drizzle-orm": "^0.40.0",
+    "drizzle-orm": "^0.44.5",
     "pg": "^8.13.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2"
