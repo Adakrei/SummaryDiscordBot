@@ -1,5 +1,5 @@
 # Multi-stage build for NestJS Discord bot
-FROM node:20-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /app
 
 # Enable pnpm via corepack
@@ -16,7 +16,7 @@ RUN pnpm build
 # Prune to production dependencies only
 RUN pnpm prune --prod
 
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
@@ -27,4 +27,3 @@ COPY package.json ./package.json
 
 EXPOSE 3000
 CMD ["node", "dist/main.js"]
-
