@@ -1,0 +1,118 @@
+name: Docker Build and Push
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-push:
+    runs-on: ${{ matrix.os }}
+    permissions:
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux/amd64
+          - os: ubuntu-24.04-arm
+            platform: linux/arm64
+    outputs:
+      full_repo: ${{ env.FULL_REPO }}
+      version: ${{ env.version }}
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v5
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Prepare the Docker tags list
+        id: prep
+        run: |
+          FULL_VERSION=$(echo ${{ github.ref }} | sed -e 's,.*/v,,')
+          VERSION=${FULL_VERSION%-latest}
+          OWNER_LOWER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')
+          REPO_LOWER=$(echo "${{ github.event.repository.name }}" | sed -r 's/([A-Z])/-\L\1/g' | sed -r 's/^-//')
+          FULL_REPO=${OWNER_LOWER}/${REPO_LOWER}
+          TAGS="ghcr.io/${FULL_REPO}:${VERSION}"
+          if [[ ${{ matrix.platform }} == "linux/amd64" ]]; then
+            SUFFIX="-amd64"
+          elif [[ ${{ matrix.platform }} == "linux/arm64" ]]; then
+            SUFFIX="-arm64"
+          fi
+          TAGS="ghcr.io/${FULL_REPO}:${VERSION}${SUFFIX}"
+          TAGS="$TAGS,ghcr.io/${FULL_REPO}:latest${SUFFIX}"
+          echo "FULL_REPO=$FULL_REPO" >> $GITHUB_ENV
+          echo "TAGS=$TAGS" >> $GITHUB_ENV
+          echo "PROGRAM_VERSION=${VERSION%}" >> $GITHUB_ENV
+          echo "version=${VERSION%}" >> $GITHUB_ENV
+          echo "PROGRAM_VERSION=${VERSION%}"
+          echo "Building with tags: $TAGS"
+
+      - name: Start multi-arch build and push
+        uses: docker/build-push-action@v6
+        with:
+          file: Dockerfile
+          build-args: PROGRAM_VERSION=${{ env.PROGRAM_VERSION }}
+          push: true
+          tags: ${{ env.TAGS }}
+          platforms: ${{ matrix.platform }}
+          provenance: false
+
+      - name: Logout from GHCR
+        run: docker logout ghcr.io
+
+  manifest:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v5
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image prefix
+        run: |
+          FULL_REPO=${{ needs.build-and-push.outputs.full_repo }}
+          echo "FULL_REPO=${FULL_REPO}" >> $GITHUB_ENV
+          echo "IMAGE_PREFIX=ghcr.io/${FULL_REPO}:${{ needs.build-and-push.outputs.version }}" >> $GITHUB_ENV
+
+      - name: Create and push manifest images
+        uses: Noelware/docker-manifest-action@master
+        with:
+          fallback: true
+          inputs: ghcr.io/${{ env.FULL_REPO }}:${{ needs.build-and-push.outputs.version }}
+          tags: ${{ env.IMAGE_PREFIX }}-amd64,${{ env.IMAGE_PREFIX }}-arm64
+          push: true
+          append: true
+
+      - name: Set image prefix for latest
+        run: echo "IMAGE_PREFIX=ghcr.io/${{ env.FULL_REPO }}:latest" >> $GITHUB_ENV
+
+      - name: Create and push manifest images for latest
+        uses: Noelware/docker-manifest-action@master
+        with:
+          fallback: true
+          inputs: ${{ env.IMAGE_PREFIX }}
+          tags: ${{ env.IMAGE_PREFIX }}-amd64,${{ env.IMAGE_PREFIX }}-arm64
+          push: true
+          append: true
+
+      - name: Logout from GHCR
+        run: docker logout ghcr.io
